@@ -31,6 +31,10 @@ except ImportError:
 import matplotlib.pyplot as plt
 from ga_utils import *
 
+
+gdal.SetConfigOption("GDAL_CACHEMAX", "6400")
+
+
 # Authors etc
 __author__ = "P Lewis & J Gomez-Dans (NCEO&UCL)"
 __copyright__ = "(c) 2014"
@@ -181,6 +185,7 @@ class GlobAlbedoPrior ( object ):
                         LOG.debug( "Removing %s... " % output_fname )
                         os.remove ( output_fname )
                     drv = gdal.GetDriverByName ( "GTiff" )
+                    drv.Register()
                     output_prod = "%03d_%s_b%d" % ( doy, kernel, band )
                     self.output_ptrs[output_prod] = drv.Create( output_fname, \
                         2400, 2400, 2, gdal.GDT_Float32, options=gdal_opts )
@@ -251,17 +256,26 @@ class GlobAlbedoPrior ( object ):
                     # data_in contains all the data. Half the samples bands are 
                     # BRDF parameters        
                     for i, kernel in enumerate ( [ "iso", "volu", "geo" ] ):
-                        
                         output_prod = "%03d_%s_b%d" % ( doy, kernel, band )
                         bout = self.output_ptrs[output_prod].GetRasterBand ( 1 )
+                        bout.SetNoDataValue(-999.0)
                         bout.WriteArray ( prior_mean[i, :, :].astype(np.float32), \
                             xoff=this_X, yoff=this_Y )
+                        bout.FlushCache()
+                        del bout
                         bout = self.output_ptrs[output_prod].GetRasterBand ( 2 )
+                        bout.SetNoDataValue(-999.0)
                         bout.WriteArray ( prior_var[i, :, :].astype(np.float32), \
                             xoff=this_X, yoff=this_Y )
-                output_prod = "%03d_%s_b%d" % (doy, kernel, band) 
-                self.output_ptrs[output_prod].SetGeoTransform( ds_config['geoT'] )
-                self.output_ptrs[output_prod].SetProjection( ds_config['proj'] )
+                        bout.FlushCache()
+                        del bout
+                # close files
+                for kernel in [ "iso", "volu", "geo" ]:
+                    output_prod = "%03d_%s_b%d" % (doy, kernel, band) 
+                    self.output_ptrs[output_prod].SetGeoTransform( ds_config['geoT'] )
+                    self.output_ptrs[output_prod].SetProjection( ds_config['proj'] )
+                    # close the file
+                    self.output_ptrs[output_prod] = None
                 LOG.info( "\t\t Burrpp!!" )
 
     def stage2_prior( self ):
@@ -273,8 +287,8 @@ class GlobAlbedoPrior ( object ):
             for kernel in [ "iso", "volu", "geo"]:
                 drv = gdal.GetDriverByName ( "GTiff" )
                 output_fname = os.path.join ( self.output_dir, \
-                   "MD43P.%s.%s.%b%d.tif" % ( kernel, self.tile, band ) )
-                dst_ds = drv.Create ( output_fname, len(t), 2400, 2400, \
+                   "MD43P.%s.%s.b%d.tif" % ( kernel, self.tile, band ) )
+                dst_ds = drv.Create ( output_fname,  2400, 2400, len(t), \
                    gdal.GDT_Float32, options=gdal_opts )
 
                 mean_vals = np.empty ((len(ts), 2400, 2400))
@@ -286,10 +300,10 @@ class GlobAlbedoPrior ( object ):
                     mean_vals [ i, :, : ]= g.GetRasterBand(1).ReadAsArray()
                     i += 1
                 for this_doy in t:
-                    w = np.roll ( w, this_doy )[ts]
+                    w_8day = np.roll ( w, this_doy )[ts]
                     mean_vals = np.ma.array ( mean_vals, mask=mean_vals == 0.)
-                    mean_iterp = np.ma.average ( mean_vals, \
-                        axis=0, weights=w )
+                    mean_interp = np.ma.average ( mean_vals, \
+                        axis=0, weights=w_8day )
                     dst_ds.GetRasterBand ( this_doy ).WriteArray ( mean_interp )
                 dst_ds.SetGeoTransform ( g.GetGeoTransform() )
                 dst_ds.SetProjection ( g.GetProjection() )
