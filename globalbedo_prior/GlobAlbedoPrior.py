@@ -47,7 +47,7 @@ __status__ = "Development"
 
 # MAGIC number
 MAGIC = 0.61803398875
-gdal_opts = [ "COMPRESS=LZW", "INTERLEAVE=BAND", "TILED=YES" ]
+gdal_opts = [ "COMPRESS=LZW", "INTERLEAVE=BAND", "TILED=YES", "BIGTIFF=YES" ]
 
 # Set up logging
 LOG = logging.getLogger( __name__ )
