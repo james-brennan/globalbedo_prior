@@ -34,7 +34,8 @@ def main():
     (options, args) = parser.parse_args()
     ga = GlobAlbedoPrior( options.tile, options.datadir, \
          options.outdir, bands=[1,2,3,4,5,6,7] )
-    ga.stage1_prior()
+    #ga.stage1_prior()
+    # only need stage 2 for now
     ga.stage2_prior()
  
 if __name__ == "__main__":

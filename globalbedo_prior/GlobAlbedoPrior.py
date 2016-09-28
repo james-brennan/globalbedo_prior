@@ -284,27 +284,29 @@ class GlobAlbedoPrior ( object ):
         w = np.exp ( -0.0866*np.abs ( t - 183) )
         w = np.roll ( w, -183 ) # Shift to 31 Dec
         for band in self.bands:
-            for kernel in [ "iso", "volu", "geo"]:
-                drv = gdal.GetDriverByName ( "GTiff" )
-                output_fname = os.path.join ( self.output_dir, \
-                   "MD43P.%s.%s.b%d.tif" % ( kernel, self.tile, band ) )
-                dst_ds = drv.Create ( output_fname,  2400, 2400, len(t), \
-                   gdal.GDT_Float32, options=gdal_opts )
+            for pr, prod in enumerate(['mean', 'var']):
+                for kernel in [ "iso", "volu", "geo"]:
+                    drv = gdal.GetDriverByName ( "GTiff" )
+                    output_fname = os.path.join ( self.output_dir, \
+                       "MD43P.%s.%s.%s.b%d.tif" % ( prod, kernel, self.tile, band ) )
+                    dst_ds = drv.Create ( output_fname,  2400, 2400, len(t), \
+                       gdal.GDT_Float32, options=gdal_opts )
 
-                mean_vals = np.empty ((len(ts), 2400, 2400))
-                i = 0
-                for d in ts:
-                    g = gdal.Open ( os.path.join ( self.output_dir, \
-                        "MCD43P.%03d.%s.%s.b%d.tif" % \
-                        ( d, kernel, self.tile, band ) ))
-                    mean_vals [ i, :, : ]= g.GetRasterBand(1).ReadAsArray()
-                    i += 1
-                for this_doy in t:
-                    w_8day = np.roll ( w, this_doy )[ts]
-                    mean_vals = np.ma.array ( mean_vals, mask=mean_vals == 0.)
-                    mean_interp = np.ma.average ( mean_vals, \
-                        axis=0, weights=w_8day )
-                    dst_ds.GetRasterBand ( this_doy ).WriteArray ( mean_interp )
-                dst_ds.SetGeoTransform ( g.GetGeoTransform() )
-                dst_ds.SetProjection ( g.GetProjection() )
-                dst_ds = None
+                    mean_vals = np.empty ((len(ts), 2400, 2400))
+                    i = 0
+                    for d in ts:
+                        g = gdal.Open ( os.path.join ( self.output_dir, \
+                            "MCD43P.%03d.%s.%s.b%d.tif" % \
+                            ( d, kernel, self.tile, band ) ))
+                        mean_vals [ i, :, : ]= g.GetRasterBand(pr+1).ReadAsArray()
+                        i += 1
+                    for this_doy in t:
+                        LOG.info( "Computing %s for doy %i on band %i, %s kernel" % (prod, this_doy, band, kernel) )
+                        w_8day = np.roll ( w, this_doy )[ts]
+                        mean_vals = np.ma.array ( mean_vals, mask=mean_vals == 0.)
+                        mean_interp = np.ma.average ( mean_vals, \
+                            axis=0, weights=w_8day )
+                        dst_ds.GetRasterBand ( this_doy ).WriteArray ( mean_interp )
+                    dst_ds.SetGeoTransform ( g.GetGeoTransform() )
+                    dst_ds.SetProjection ( g.GetProjection() )
+                    dst_ds = None

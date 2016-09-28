@@ -24,6 +24,8 @@ try:
 except ImportError:
     print "You need to have the GDAL Python bindings installed!"
 
+gdal.SetConfigOption("GDAL_CACHEMAX", "6400")
+
 # Authors etc
 __author__ = "P Lewis & J Gomez-Dans (NCEO&UCL)"
 __copyright__ = "(c) 2014"
