@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+# -*- coding: utf-8 -*-
 """
 Globalbedo prior generation
 ============================
@@ -67,7 +67,7 @@ class GlobAlbedoPrior ( object ):
 
         Parameters
         ----------
-        tile: str 
+        tile: str
             The tile in MODIS-speak, e.g. "h17v04"
         data_dir: str
             The top directory where input data are stored
@@ -87,12 +87,12 @@ class GlobAlbedoPrior ( object ):
 
         # Now, get the list of filenames that we are going to use...
         a1, a2 = self.get_modis_fnames ()
-        
+
         LOG.info ("Found %d(MCD43A1)/%d(MCD43A2) HDF files in %s" % \
             ( a1, a2, self.data_dir ) )
         LOG.info ("Will write output in %s" % self.output_dir )
         self.no_snow = no_snow
-    
+
     def get_modis_fnames ( self ):
         """Grab MODIS filenames
         This method gets the MODIS filenames and stores them in dictionaries
@@ -118,18 +118,18 @@ class GlobAlbedoPrior ( object ):
         if a1_files == 0:
             raise IOError("No files found!!! You sure about the tile and directory?")
         return a1_files, a2_files
-    
+
     def _interpret_qa ( self, qa_data ):
         """Interpret QA
-        A method to interpret the QA according to the GlobAlbedo specs. The 
+        A method to interpret the QA according to the GlobAlbedo specs. The
         QA flags are translated into a numerical value using `MAGIC`, which
         is by default defined to be the golden proportion.
-        
+
         Parameters
         ----------
         qa_data: array
             An n_years*nx*ny array of QA data, from the MODIS product
-            
+
         Returns
         --------
         An array with the relevant calculated weights
@@ -138,28 +138,28 @@ class GlobAlbedoPrior ( object ):
         qa = np.bitwise_and ( qa_data, 7L ) # 7 is b000111, ie get the last 3 bits
         weight = np.where ( qa < 4, MAGIC**qa, 0. )
         return weight
-    
+
     def _interpret_snowmask ( self, snow_data ):
         """Interpret the snow mask
         Interpret the snow mask as a boolean array, depending on whether we are
         doing the snow or the snowfree prior.
-        
+
         Returns
         --------
         A snow mask (boolean)
         """
-        
+
         if self.no_snow:
             snow = np.where ( snow_data == 0, True, False ) # Snow free
         else:
-            snow = np.where ( snow_data == 1, True, False ) # Snow 
+            snow = np.where ( snow_data == 1, True, False ) # Snow
         return snow
-            
+
     def _interpret_landcover ( self, landcover ):
         """Interpret the landcover information
-        The landcover flags are filtered. In principle, we just choose 
+        The landcover flags are filtered. In principle, we just choose
         everything under 7, but this can obviously be refined.
-        
+
         Returns
         A boolean array of suitable/unsuitable landcover type
         """
@@ -168,7 +168,7 @@ class GlobAlbedoPrior ( object ):
         mask = np.right_shift(np.bitwise_and ( landcover, 120L), 3)
         mask = np.where ( mask < 7, True, False ) # ignore deep ocean
         return mask
-    
+
     def create_output ( self ):
         self.output_ptrs = {}
 
@@ -179,8 +179,8 @@ class GlobAlbedoPrior ( object ):
                         "MCD43P.%03d.%s.%s.b%d.tif" % \
                         ( doy, kernel, self.tile, band ) )
                     LOG.debug ( "Creating %s" % output_fname )
-                   
-                                                              
+
+
                     if os.path.exists ( output_fname ):
                         LOG.debug( "Removing %s... " % output_fname )
                         os.remove ( output_fname )
@@ -190,43 +190,43 @@ class GlobAlbedoPrior ( object ):
                     self.output_ptrs[output_prod] = drv.Create( output_fname, \
                         2400, 2400, 2, gdal.GDT_Float32, options=gdal_opts )
                     LOG.debug("\t... Created!")
-                    
+
     def do_qa ( self, data_in, n_years ):
         """A simple method to do the QA from the read data. The reason for this is
         to get Python's garbage collector to deallocate the memory of all these
-        temporary arrays after we have calculated the mask. We assume that 
-        `data_in` stores `n_years` of BRDF data, QA data, snow data and 
+        temporary arrays after we have calculated the mask. We assume that
+        `data_in` stores `n_years` of BRDF data, QA data, snow data and
         ancillary data. The order is important, as we use the positions in
         `data_in` to figure out what each array is.
-        
+
         Parameters
         -----------
         data_in: list
-            A list with the different data: kernels, QA, snow, 
+            A list with the different data: kernels, QA, snow,
             ancillary information...
         n_years: int
             The number of years.
-            
+
         Returns
         -------
         A mask of interpreted QA, with 0 where data are missing.
         """
-        
+
         qa_data = np.array ( data_in [ (n_years):(2*n_years)] )
         snow_data = np.array ( data_in [ (2*n_years):(3*n_years)] )
         land_data = np.array ( data_in[ (3*n_years):] )
-        
+
         qa = self._interpret_qa ( qa_data )
         snow = self._interpret_snowmask ( snow_data )
         land = self._interpret_landcover ( land_data )
         mask = qa*snow*land
         return mask
-    
-    
+
+
     def stage1_prior ( self ):
         """Produce the stage 1 prior, which is simply a weighted average of the
         kernel weights. This"""
-        
+
         self.create_output ()
         for band in self.bands:
             for doy in xrange ( 1, 367, 8 ):
@@ -253,8 +253,8 @@ class GlobAlbedoPrior ( object ):
                     data_in = None # Clear memory a bit
                     # Process per kernel weight
                     prior_mean, prior_var = calculate_prior ( brdf_data, mask )
-                    # data_in contains all the data. Half the samples bands are 
-                    # BRDF parameters        
+                    # data_in contains all the data. Half the samples bands are
+                    # BRDF parameters
                     for i, kernel in enumerate ( [ "iso", "volu", "geo" ] ):
                         output_prod = "%03d_%s_b%d" % ( doy, kernel, band )
                         bout = self.output_ptrs[output_prod].GetRasterBand ( 1 )
@@ -271,7 +271,7 @@ class GlobAlbedoPrior ( object ):
                         del bout
                 # close files
                 for kernel in [ "iso", "volu", "geo" ]:
-                    output_prod = "%03d_%s_b%d" % (doy, kernel, band) 
+                    output_prod = "%03d_%s_b%d" % (doy, kernel, band)
                     self.output_ptrs[output_prod].SetGeoTransform( ds_config['geoT'] )
                     self.output_ptrs[output_prod].SetProjection( ds_config['proj'] )
                     # close the file
@@ -284,29 +284,129 @@ class GlobAlbedoPrior ( object ):
         w = np.exp ( -0.0866*np.abs ( t - 183) )
         w = np.roll ( w, -183 ) # Shift to 31 Dec
         for band in self.bands:
-            for pr, prod in enumerate(['mean', 'var']):
-                for kernel in [ "iso", "volu", "geo"]:
-                    drv = gdal.GetDriverByName ( "GTiff" )
-                    output_fname = os.path.join ( self.output_dir, \
-                       "MD43P.%s.%s.%s.b%d.tif" % ( prod, kernel, self.tile, band ) )
-                    dst_ds = drv.Create ( output_fname,  2400, 2400, len(t), \
-                       gdal.GDT_Float32, options=gdal_opts )
+            do the weighted means
+            prod = 'mean'
+            for kernel in [ "iso", "volu", "geo"]:
+                drv = gdal.GetDriverByName ( "GTiff" )
+                output_fname = os.path.join ( self.output_dir, \
+                   "MD43P.%s.%s.%s.b%d.tif" % ( prod, kernel, self.tile, band ) )
+                dst_ds = drv.Create ( output_fname,  2400, 2400, len(t), \
+                   gdal.GDT_Float32, options=gdal_opts )
 
-                    mean_vals = np.empty ((len(ts), 2400, 2400))
-                    i = 0
-                    for d in ts:
-                        g = gdal.Open ( os.path.join ( self.output_dir, \
-                            "MCD43P.%03d.%s.%s.b%d.tif" % \
-                            ( d, kernel, self.tile, band ) ))
-                        mean_vals [ i, :, : ]= g.GetRasterBand(pr+1).ReadAsArray()
-                        i += 1
-                    for this_doy in t:
-                        LOG.info( "Computing %s for doy %i on band %i, %s kernel" % (prod, this_doy, band, kernel) )
-                        w_8day = np.roll ( w, this_doy )[ts]
-                        mean_vals = np.ma.array ( mean_vals, mask=mean_vals == 0.)
-                        mean_interp = np.ma.average ( mean_vals, \
-                            axis=0, weights=w_8day )
-                        dst_ds.GetRasterBand ( this_doy ).WriteArray ( mean_interp )
-                    dst_ds.SetGeoTransform ( g.GetGeoTransform() )
-                    dst_ds.SetProjection ( g.GetProjection() )
-                    dst_ds = None
+                mean_vals = np.empty ((len(ts), 2400, 2400))
+                i = 0
+                for d in ts:
+                    g = gdal.Open ( os.path.join ( self.output_dir, \
+                        "MCD43P.%03d.%s.%s.b%d.tif" % \
+                        ( d, kernel, self.tile, band ) ))
+                    mean_vals [ i, :, : ]= g.GetRasterBand(1).ReadAsArray()
+                    i += 1
+                # make into masked array
+                mean_vals = np.ma.array ( mean_vals, mask=mean_vals == 0.)
+                # iterate over days
+                for this_doy in t:
+                    LOG.info( "Computing %s for doy %i on band %i, %s kernel" % (prod, this_doy, band, kernel) )
+                    w_8day = np.roll ( w, this_doy )[ts]
+                    mean_interp = np.ma.average ( mean_vals, \
+                        axis=0, weights=w_8day )
+                    dst_ds.GetRasterBand ( this_doy ).WriteArray ( mean_interp )
+                dst_ds.SetGeoTransform ( g.GetGeoTransform() )
+                dst_ds.SetProjection ( g.GetProjection() )
+                dst_ds = None
+            """
+            Do the weighted uncertainties
+            ------------------------------
+
+            This is unfortunately more involved.
+
+            We assume that each set of kernel weights at 8 days are Gaussian with
+
+            f_i = G(mean, sigma)
+
+            Therefore to make a daily weighted Gaussian we need to weight
+            the means which is easy but also the variances which being the second
+            moment is dependent on the mean.
+
+
+            if we define f(x) as the weighted product according to weights w:
+
+            the mean is
+
+            E[X] = f(x) = \sum_{i}^{N} = w_i mu_i
+
+            considering the variance is:
+
+            sigma_{i}^{2} =  E[x^2] - (E[X])^2
+
+            the weighted variance is
+
+
+            var(f) = \sum_{i} w_i * \sigma_{i}^{2} +  \sum_{i} w_i * (\mu_i)^{2}
+                    - \left( \sum_{i} w_i \mu_i   \right)^{2s}
+
+
+            the subtraction is a correction term for the different means
+
+            (see http://stats.stackexchange.com/questions/
+                    16608/what-is-the-variance-of-the-weighted-mixture-of-two-gaussians)
+
+            """
+            # do the weighted means
+            prod = 'var'
+            for kernel in [ "iso", "volu", "geo"]:
+                drv = gdal.GetDriverByName ( "GTiff" )
+                output_fname = os.path.join ( self.output_dir, \
+                   "MD43P.%s.%s.%s.b%d.tif" % ( prod, kernel, self.tile, band ) )
+                dst_ds = drv.Create ( output_fname,  2400, 2400, len(t), \
+                   gdal.GDT_Float32, options=gdal_opts )
+
+                mean_vals = np.empty ((len(ts), 2400, 2400))
+                var_vals = np.empty ((len(ts), 2400, 2400))
+                i = 0
+                for d in ts:
+                    g = gdal.Open ( os.path.join ( self.output_dir, \
+                        "MCD43P.%03d.%s.%s.b%d.tif" % \
+                        ( d, kernel, self.tile, band ) ))
+                    mean_vals [ i, :, : ]= g.GetRasterBand(1).ReadAsArray()
+                    var_vals [ i, :, : ]= g.GetRasterBand(2).ReadAsArray()
+                    i += 1
+                # make into masked arrays
+                mean_vals = np.ma.array ( mean_vals, mask=mean_vals == 0.)
+                var_vals = np.ma.array ( var_vals, mask=mean_vals == 0.)
+                # loop over days t
+                for this_doy in t:
+                    LOG.info( "Computing %s for doy %i on band %i, %s kernel" % (prod, this_doy, band, kernel) )
+                    w_8day = np.roll ( w, this_doy )[ts]
+                    """
+                    Calculate weighted variances
+                    \sum_{i} w_{i} * \sigma_{i}^{2}
+                    """
+                    weighted_variances = np.ma.average ( var_vals, \
+                        axis=0, weights=w_8day )
+                    """
+                    Calculate weighted square means
+                    \sum_{i} w_{i} * (\mu_{i})^{2}
+                    """
+                    weighed_squared_means = np.ma.average ( mean_vals**2, \
+                        axis=0, weights=w_8day )
+                    """
+                    calculate square weigthed means
+                    ( \sum_{i} w_{i} \mu_{i}  )^{2}
+                    """
+                    squared_weighted_means = np.ma.average ( mean_vals, \
+                        axis=0, weights=w_8day )**2
+                    """
+                    total weighted variance:
+                    ------------------------
+                    var(f) = \sum_{i} w_{i} * \sigma_{i}^{2} + \sum_{i} w_{i} * (\mu_{i})^{2}
+                             -  ( \sum_{i} w_{i} \mu_{i}  )^{2}
+                    """
+                    total_weighted_variance = ( weighted_variances +
+                                                weighed_squared_means
+                                                - squared_weighted_means )
+                    # save
+                    dst_ds.GetRasterBand ( this_doy ).WriteArray ( total_weighted_variance )
+                dst_ds.SetGeoTransform ( g.GetGeoTransform() )
+                dst_ds.SetProjection ( g.GetProjection() )
+                dst_ds = None
+
